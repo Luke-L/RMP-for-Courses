@@ -1,19 +1,17 @@
 // ==UserScript==
-// @name         ratemyprofessors
-// @namespace    http://tampermonkey.net/
-// @version      0.1
-// @description  try to take over the world!
-// @author       You
+// @name         RMP4C
+// @description  Adds RMP data to course searches
+// @version      0.2
+// @author       Luke-L
 // @match        https://selfservice.tccd.edu/Student/Courses/Search*
 // @match        https://selfservice.tccd.edu/Student/Student/Courses/Search*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=greasyfork.org
+// @HomepageURL  https://github.com/Luke-L/RMP-for-Courses
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 (function () {
     "use strict";
-
-    // Your code here...
 
     const CHECK_INTERVAL = 10000;
     const WAIT_FOR_COURSE_STABLE = 5000;
@@ -27,40 +25,85 @@
     }
 
     async function addLink() {
-        let querySelectorButton =
-            'div[data-bind="foreach: TermsAndSections"] > ul > li > table > tbody > tr:first-child > td:last-child >div > span:first-child';
-        let querySelectorList = 'table[id="section-results-table"] > tbody > tr > td:nth-child(9) > div > span';
-        let querySelector = `${querySelectorButton}, ${querySelectorList}`;
+        let querySelector;
+        // TCCD Section/Catalog search page
+        if (window.location.href.includes("selfservice.tccd.edu")) {
+            if (Ellucian && Ellucian.Course && Ellucian.Course.SearchResult && Ellucian.Course.SearchResult.jsonData && Ellucian.Course.SearchResult.jsonData.searchResultsView) {
+                let searchResultsView = Ellucian.Course.SearchResult.jsonData.searchResultsView;
+                console.log("Search Results View: ", searchResultsView);
+
+                if (searchResultsView === "CatalogListing") {
+                    // Query selector for 'CatalogListing' view
+                    querySelector = 'div[data-bind="foreach: TermsAndSections"] > ul > li > table > tbody > tr:first-child > td:last-child >div > span:first-child';
+                }
+                else if (searchResultsView === "SectionListing") {
+                    // Query selector for 'SectionListing' view
+                    querySelector = 'td.esg-table-body__td--section-table[data-role="Faculty"] span[data-bind*="faculty.FacultyName"]';
+                }
+            } else {
+                console.error("Ellucian.Course.SearchResult.jsonData object or searchResultsView property not found");
+                return; // Exit the function if the necessary data isn't available
+            }
+        } else {
+            console.error("Not a TCC page");
+            return; // Exit the function if the necessary data isn't available
+        }
+
+        // Selects all span elements based on the querySelector defined earlier
         let spans = document.querySelectorAll(querySelector);
+
+        // Iterates over each span element found
         for (let span of spans) {
             let ratingNotExist = span.getElementsByTagName("A").length == 0;
             console.log("ratingNotExist", ratingNotExist);
+
+            // Proceeds if no rating link is found
             if (ratingNotExist) {
+                // Retrieves and trims the professor's name from the span's text content
                 let professorName = span.textContent.trim();
                 console.log(professorName, professorName.length);
+
                 if (professorName.length > 0) {
                     getRatingByName(professorName).then((info) => {
                         if (typeof info != "undefined") {
+                            // Creates a new anchor element for the rating
                             let eleA = document.createElement("A");
-                            //eleA.setAttribute("href", `https://www.ratemyprofessors.com/professor?tid=${info.legacyId}`);
                             eleA.setAttribute("href", "#");
+
+                            // Sets onclick function to open the rating page in a new tab
                             let onclickFun = `window.open("https://www.ratemyprofessors.com/professor?tid=${info.legacyId}", "_blank")`;
                             eleA.setAttribute("onclick", onclickFun);
+
+                            // Sets the text content of the anchor element to show the rating and difficulty
                             eleA.textContent = `  Rating:${info.avgRating}(${info.numRatings}) Difficulty:${info.avgDifficulty}`;
+
                             span.insertAdjacentElement("beforeend", eleA);
-                        }else{
+                        } else {
                             let eleA = document.createElement("A");
+                            // Creates a URL for searching the professor on RateMyProfessors
+                            let searchURL = `https://www.ratemyprofessors.com/search/professors/1557?q=${encodeURIComponent(professorName)}`;
+                            eleA.setAttribute("href", searchURL);
+                            eleA.setAttribute("target", "_blank");
+                            eleA.textContent = "Rating Not Found - Search";
                             span.insertAdjacentElement("beforeend", eleA);
                         }
+                    }).catch(() => {
+                        // Error handling for when the getRatingByName function fails (e.g., network error)
+                        let eleA = document.createElement("A");
+                        let searchURL = `https://www.ratemyprofessors.com/search/professors/1557?q=${encodeURIComponent(professorName)}`;
+                        eleA.setAttribute("href", searchURL);
+                        eleA.setAttribute("target", "_blank");
+                        eleA.textContent = "Rating Not Found - Search";
+                        span.insertAdjacentElement("beforeend", eleA);
                     });
-                }else{
+                } else {
+                    // Handles the case where the span does not contain a professor's name
                     let eleA = document.createElement("A");
                     span.insertAdjacentElement("beforeend", eleA);
                 }
             }
         }
     }
-
     async function getRatingByName(professorName) {
         let singleResult = await new Promise((resolve) => {
             const url = "https://www.ratemyprofessors.com/graphql";
@@ -141,7 +184,6 @@
     let pageType = "";
     setInterval(() => {
         let unclickedButton = Array.from(document.querySelectorAll('div[data-bind="foreach: TermsAndSections"]')).some((v) => {
-            // console.log(v.textContent);
             return v.textContent.trim() == "";
         });
         console.log(unclickedButton);
