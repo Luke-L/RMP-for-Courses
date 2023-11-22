@@ -6,7 +6,8 @@
 // @match        https://selfservice.tccd.edu/Student/Courses/Search*
 // @match        https://selfservice.tccd.edu/Student/Student/Courses/Search*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=greasyfork.org
-// @HomepageURL  https://github.com/Luke-L/RMP-for-Courses
+// @homepageURL  https://github.com/Luke-L/RMP-for-Courses
+// @downloadURL  https://raw.githubusercontent.com/Luke-L/RMP-for-Courses/main/RMP4C.js
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
