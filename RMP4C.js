@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RMP4C
-// @description  Adds RMP data to course searches
-// @version      0.2
+// @description  Adds RMP data to course searches, may not work with other than tcc.
+// @version      0.4
 // @author       Luke-L
 // @match        https://selfservice.tccd.edu/Student/Courses/Search*
 // @match        https://selfservice.tccd.edu/Student/Student/Courses/Search*
@@ -12,6 +12,52 @@
 
 (function () {
     "use strict";
+
+    let schoolName, longID, shortID, querySelector;
+
+    // Define School configurations
+    const schoolConfigs = {
+        "selfservice.tccd.edu": {
+            name: "Tarrant County College",
+            longID: "U2Nob29sLTE1NTc=",
+            shortID: "1557",
+            getQuerySelector: () => {
+                if (Ellucian && Ellucian.Course && Ellucian.Course.SearchResult && Ellucian.Course.SearchResult.jsonData && Ellucian.Course.SearchResult.jsonData.searchResultsView) {
+                    let searchResultsView = Ellucian.Course.SearchResult.jsonData.searchResultsView;
+                    if (searchResultsView === "CatalogListing") {
+                        return 'div[data-bind="foreach: TermsAndSections"] > ul > li > table > tbody > tr:first-child > td:last-child >div > span:first-child';
+                    } else if (searchResultsView === "SectionListing") {
+                        return 'td.esg-table-body__td--section-table[data-role="Faculty"] span[data-bind*="faculty.FacultyName"]';
+                    }
+                }
+                return null; // Default or fallback querySelector, if needed
+            }
+        },
+        "arcs-prd.utshare.utsystem.edu": {
+            name: "University of Texas at Arlington",
+            longID: "U2Nob29sLTEzNDM=",
+            shortID: "1343",
+            querySelector: "span[id^='MTG_INSTR$']"
+        }
+        // Add more schools with their configurations here
+    };
+
+    // Determine the current school based on the URL
+    for (let urlPart in schoolConfigs) {
+        if (window.location.href.includes(urlPart)) {
+            const config = schoolConfigs[urlPart];
+            schoolName = config.name;
+            longID = config.longID;
+            shortID = config.shortID;
+            querySelector = config.getQuerySelector();
+            break;
+        }
+    }
+
+    if (!querySelector) {
+        console.error("Configuration not found for this URL.");
+        return; // Exit the script if the configuration is not found
+    }
 
     const CHECK_INTERVAL = 10000;
     const WAIT_FOR_COURSE_STABLE = 5000;
@@ -25,7 +71,8 @@
     }
 
     async function addLink() {
-        let querySelector;
+        let querySelector = currentSchoolConfig.querySelector;
+
         // TCCD Section/Catalog search page
         if (window.location.href.includes("selfservice.tccd.edu")) {
             if (Ellucian && Ellucian.Course && Ellucian.Course.SearchResult && Ellucian.Course.SearchResult.jsonData && Ellucian.Course.SearchResult.jsonData.searchResultsView) {
